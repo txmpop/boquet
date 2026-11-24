@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Тебе 💐</title>
+<style>
+:root{--bg:#10061c;--fg:#ffd9e8;--soft:#ff9ec4;color-scheme:dark}
+html{background:var(--bg)}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--fg);font-family:Georgia,'Times New Roman',serif;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;box-sizing:border-box;padding:calc(env(safe-area-inset-top,0px) + 8px) 12px calc(env(safe-area-inset-bottom,0px) + 8px);overflow-x:hidden}
+h1{margin:0;font-style:italic;font-weight:400;font-size:clamp(26px,7vw,40px);color:var(--soft);text-shadow:0 0 18px #ff5c9a88}
+canvas{display:block;max-width:100%;touch-action:manipulation}
+#wish{min-height:3.2em;max-width:520px;text-align:center;font-size:clamp(17px,4.6vw,22px);line-height:1.35;font-style:italic;transition:opacity .7s;padding:0 6px}
+small{opacity:.55;font-size:13px}
+</style>
+</head>
+<body>
+<h1>Тебе 💐</h1>
+<canvas id="c"></canvas>
+<div id="wish"></div>
+<small>нажми на букет — будет сюрприз 💗</small>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const FONT="ui-monospace,Menlo,Consolas,'DejaVu Sans Mono',monospace";
+let COLS,ROWS,cw,ch,W,H;
+function resize(){
+  const bw=Math.min(window.innerWidth-24,560);
+  W=Math.max(280,Math.min(bw,(window.innerHeight-170)/1.2));
+  COLS=Math.max(70,Math.min(130,Math.round(W/4.2)));
+  cw=W/COLS;ch=cw*1.8;ROWS=Math.round(W*1.2/ch);H=ROWS*ch;
+  const d=Math.min(window.devicePixelRatio||1,2);
+  cv.width=W*d;cv.height=H*d;cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(d,0,0,d,0,0);
+  ctx.textAlign='center';ctx.textBaseline='middle';
+}
+window.addEventListener('resize',resize);resize();
+
+let R=0,G=0,B=0,L=0,K=0;
+const set=(r,g,b,l,k)=>{R=r;G=g;B=b;L=l;K=k;return true};
+const cl=(v,a=0,b=1)=>v<a?a:v>b?b:v;
+const ss=(a,b,x)=>{x=cl((x-a)/(b-a));return x*x*(3-2*x)};
+const mx=(a,b,t)=>a+(b-a)*t;
+const hash=(i,j)=>{const h=Math.sin(i*127.1+j*311.7)*43758.5453;return h-Math.floor(h)};
+const shade=(P,l,k)=>{l=cl(l);return set(mx(P[0][0],P[1][0],l),mx(P[0][1],P[1][1],l),mx(P[0][2],P[1][2],l),l,k)};
+function dseg(px,py,ax,ay,bx,by){const abx=bx-ax,aby=by-ay;let t=((px-ax)*abx+(py-ay)*aby)/(abx*abx+aby*aby);t=t<0?0:t>1?1:t;return Math.hypot(ax+abx*t-px,ay+aby*t-py)}
+
+const PAL={red:[[110,6,38],[255,72,104]],pink:[[190,50,115],[255,178,208]],peach:[[225,98,70],[255,212,172]],lilac:[[100,60,160],[222,184,255]],
+  green:[[8,60,36],[130,225,130]],paper:[[190,60,120],[255,190,215]],ribbon:[[130,10,55],[255,70,120]]};
+
+const F=[
+ {x:.50,y:.14,r:.07,t:'rose',c:'lilac',p:1.2},
+ {x:.26,y:.33,r:.062,t:'rose',c:'lilac',p:2.4},
+ {x:.75,y:.31,r:.062,t:'rose',c:'lilac',p:3.1},
+ {x:.37,y:.21,r:.082,t:'daisy',tip:[255,170,205],p:.7},
+ {x:.64,y:.20,r:.082,t:'daisy',tip:[255,225,130],p:1.9},
+ {x:.20,y:.52,r:.078,t:'daisy',tip:[255,170,205],p:4.0},
+ {x:.81,y:.51,r:.078,t:'daisy',tip:[255,225,130],p:5.0},
+ {x:.40,y:.56,r:.075,t:'daisy',tip:[255,200,170],p:2.2},
+ {x:.62,y:.56,r:.078,t:'rose',c:'pink',p:.3},
+ {x:.50,y:.30,r:.125,t:'rose',c:'red',p:.9},
+ {x:.32,y:.41,r:.105,t:'rose',c:'pink',p:2.0},
+ {x:.68,y:.41,r:.105,t:'rose',c:'peach',p:3.5},
+ {x:.50,y:.51,r:.098,t:'rose',c:'red',p:4.4}
+];
+const LV=[[.47,.66,.34,-2.7,.055],[.46,.64,.36,-2.2,.06],[.53,.66,.34,-.45,.055],[.54,.64,.36,-.95,.06],[.5,.66,.32,-1.9,.05],[.5,.66,.33,-1.25,.05],[.45,.70,.40,-3.0,.055],[.55,.70,.40,-.14,.055]];
+let seed=7;const rnd=()=>{seed=(seed*16807)%2147483647;return seed/2147483647};
+const GY=[];for(let k=0;k<90;k++){const a=rnd()*6.283,d=Math.sqrt(rnd());GY.push([.5+Math.cos(a)*d*.44,.33+Math.sin(a)*d*.30,.011+rnd()*.007,rnd()*6])}
+
+function bow(x,y,t){
+  const bx=.5,by=.865;
+  if(Math.hypot(x-bx,(y-by)*1.1)<.03){const l=.55+.35*Math.sin((x-bx)*90);return shade(PAL.ribbon,l,1)}
+  for(const s of[-1,1]){
+    const u=(x-bx)*s,v=y-by;
+    const lx=u-.085,ly=v-.3*lx;
+    const e=(lx/.085)**2+(ly/.05)**2;
+    if(e<1&&e>.26)return shade(PAL.ribbon,.35+.5*(1-e)+.1*Math.sin(x*120),1);
+    const tt=dseg(x,y,bx,by+.015,bx+s*.08+Math.sin(t*1.6)*.004*s,by+.16);
+    if(tt<.017)return shade(PAL.ribbon,.5+.4*(1-tt/.017),1);
+  }
+  return false;
+}
+function paper(x,y,t){
+  const dx=x-.5,q=dx/.34,y0=.585+.075*(1-Math.min(1,q*q));
+  const hw=.34*(1.16-y)/.58;
+  if(y<y0||Math.abs(dx)>hw)return false;
+  if(y<y0+.02){const sc=.006*Math.sin(x*140);if(y<y0+.012+sc)return set(255,238,226,.9,0)}
+  const ang=Math.atan2(dx,1.16-y);
+  let l=.55+.25*Math.sin(ang*18+1)-.2*dx/.34;
+  if(Math.abs(dx)>hw-.012)l=.1;
+  if(Math.sin(x*85)*Math.sin(y*60+x*20)>.88)l+=.28;
+  l+=.05*Math.sin(t*2+x*9);
+  return shade(PAL.paper,l,0);
+}
+function rose(f,dx,dy,rr,a,t){
+  const edge=1+.06*Math.sin(5*a+f.p)+.03*Math.sin(9*a+1);
+  if(rr>edge)return false;
+  const q=rr/edge;
+  let l=.52+.2*Math.sin(a*2+Math.log(q+.06)*9+f.p)+.16*Math.sin(q*16+Math.sin(a*3+f.p)*1.2);
+  l-=.3*(1-ss(0,.3,q));l+=.15*ss(.8,.95,q);l-=.18*(dx+dy*.8)/f.r;
+  l+=.08*Math.sin(t*2.2+(dx+dy)*40);
+  if(q>.95)l=.08;
+  return shade(PAL[f.c],l,0);
+}
+function daisy(f,dx,dy,rr,a,t){
+  const n=10,ph=f.p*.3;
+  const lobe=Math.pow(Math.abs(Math.cos(n*(a+ph)/2)),.55);
+  const edge=.56+.44*lobe;
+  if(rr>edge)return false;
+  if(rr<.27){
+    const l=cl(.5+.3*Math.sin(dx/f.r*60)*Math.sin(dy/f.r*60)-.15*(dx+dy)/f.r);
+    return set(mx(150,255,l),mx(80,200,l),mx(0,40,l),l,0);
+  }
+  let l=.9-.25*(1-ss(.27,.5,rr))-.12*(.5+.5*Math.cos(n*(a+ph)*3));
+  l-=.3*(1-lobe)*ss(.3,.5,rr);
+  if(edge-rr<.04)l-=.3;
+  l+=.07*Math.sin(t*2.2+(dx+dy)*40);
+  l=cl(l);
+  const k=ss(.6,1,rr),m=.5+.5*l;
+  return set(mx(255,f.tip[0],k)*m,mx(248,f.tip[1],k)*m,mx(240,f.tip[2],k)*m,l,0);
+}
+function fl(x,y,t){
+  for(let k=F.length-1;k>=0;k--){
+    const f=F[k],dx=x-f.x-f.sx,dy=y-f.y-f.sy,R2=f.r*f.s;
+    if(dx*dx+dy*dy>R2*R2*1.3)continue;
+    const rr=Math.hypot(dx,dy)/R2,a=Math.atan2(dy,dx);
+    if(f.t==='rose'?rose(f,dx,dy,rr,a,t):daisy(f,dx,dy,rr,a,t))return true;
+  }
+  return false;
+}
+function gyp(x,y,t){
+  for(const g of GY){
+    if(Math.abs(x-g[0])>.02||Math.abs(y-g[1])>.02)continue;
+    if(Math.hypot(x-g[0],y-g[1])<g[2]){const tw=.65+.35*Math.sin(t*2.5+g[3]);return set(255*tw,235*tw,245*tw,.7,1)}
+  }
+  return false;
+}
+function leaves(x,y,t){
+  for(let k=0;k<LV.length;k++){
+    const l=LV[k],a=l[3]+.04*Math.sin(t*1.1+k),ux=Math.cos(a),uy=Math.sin(a);
+    const rx=x-l[0],ry=y-l[1],u=rx*ux+ry*uy,v=-rx*uy+ry*ux,tt=u/l[2];
+    if(tt<0||tt>1)continue;
+    const hw=l[4]*Math.pow(Math.sin(Math.PI*tt),.8);
+    if(Math.abs(v)>hw)continue;
+    let ll=.45+.22*v/(hw+1e-6);
+    if(Math.abs(v)<.0035)ll+=.3;
+    if(Math.abs(Math.sin(tt*20-Math.abs(v)/l[4]*5))>.92)ll+=.2;
+    return shade(PAL.green,ll,0);
+  }
+  return false;
+}
+function stems(x,y){
+  for(const f of F){
+    const d=dseg(x,y,f.x+f.sx,f.y+f.sy,.5,.8);
+    if(d<.006)return shade(PAL.green,.3+.6*(1-d/.006),2);
+  }
+  return false;
+}
+function back(x,y,i,j,t){
+  const glow=Math.exp(-(((x-.5)**2)/.16+((y-.42)**2)/.12));
+  const hh=hash(i,j);
+  if(hh<.035){const tw=.25+.75*(.5+.5*Math.sin(t*2.2+hh*200));return set(255*tw,205*tw,235*tw,.3,3)}
+  if(glow>.15&&(i+j)%2===0)return set(150*glow,50*glow,110*glow,.2,3);
+  return false;
+}
+
+const RAMP=' .:-=+*#%@',PH='ТЫМОЯСАМАЯЛУЧШАЯЛЮБЛЮТЕБЯ';
+function pick(i,j,t){
+  if(K===3)return hash(i,j)<.035?(L>.6?'*':'.'):'.';
+  if(K===1)return L>.8?'*':L>.5?'o':'.';
+  if(K===2)return L>.66?'|':L>.33?'!':':';
+  if(L<.28)return '.:-'[Math.min(2,(L*10)|0)];
+  const c=PH[(i+j*3+((t*4)|0))%PH.length];
+  return L>.62?c:c.toLowerCase();
+}
+
+const PS=[];
+const SYM=['♥','✿','✦','❀','♡'],COL=['#ff7aa8','#ffb3cf','#ffd27a','#ff9ec4','#fff0f5'];
+function spawn(x,y,vx,vy,life){PS.push({x,y,vx,vy,life,max:life,c:SYM[(Math.random()*5)|0],col:COL[(Math.random()*5)|0],ph:Math.random()*6})}
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect(),x=(e.clientX-r.left)/W,y=(e.clientY-r.top)/W;
+  for(let k=0;k<26;k++){const a=Math.random()*6.283,s=.08+Math.random()*.22;spawn(x,y,Math.cos(a)*s,Math.sin(a)*s-.12,1.8+Math.random()*.8)}
+});
+
+let last=0,lastSpawn=0;
+function frame(ms){
+  requestAnimationFrame(frame);
+  if(ms-last<40)return;
+  const dt=Math.min(.1,(ms-last)/1000);last=ms;
+  const t=ms/1000;
+  ctx.fillStyle='#10061c';ctx.fillRect(0,0,W,H);
+  for(const f of F){
+    const amp=.004+.014*(.6-f.y)/.5;
+    f.sx=Math.sin(t*.9+f.p)*amp;f.sy=Math.cos(t*.7+f.p)*.004;f.s=1+.035*Math.sin(t*1.7+f.p);
+  }
+  ctx.font=(ch*.95)+'px '+FONT;
+  for(let j=0;j<ROWS;j++){
+    const y=(j+.5)*ch/W;
+    for(let i=0;i<COLS;i++){
+      const x=(i+.5)/COLS;
+      if(!(bow(x,y,t)||paper(x,y,t)||fl(x,y,t)||gyp(x,y,t)||leaves(x,y,t)||stems(x,y)||back(x,y,i,j,t)))continue;
+      ctx.fillStyle='rgb('+(R|0)+','+(G|0)+','+(B|0)+')';
+      ctx.fillText(pick(i,j,t),(i+.5)*cw,(j+.5)*ch);
+    }
+  }
+  if(t-lastSpawn>.3&&PS.length<60){lastSpawn=t;spawn(.1+Math.random()*.8,1.15,0,-(.05+Math.random()*.06),4+Math.random()*2)}
+  ctx.font=(ch*1.7)+'px '+FONT;
+  for(let k=PS.length-1;k>=0;k--){
+    const p=PS[k];p.life-=dt;
+    if(p.life<=0||p.y<-.05){PS.splice(k,1);continue}
+    p.x+=(p.vx+Math.sin(t*2+p.ph)*.015)*dt;p.y+=p.vy*dt;
+    if(p.max<3)p.vy+=.18*dt;
+    ctx.globalAlpha=cl(Math.min(p.life/.6,1)*Math.min(1,p.y/.15+.2));
+    ctx.fillStyle=p.col;ctx.fillText(p.c,p.x*W,p.y*W);
+  }
+  ctx.globalAlpha=1;
+}
+requestAnimationFrame(frame);
+
+const WISHES=[
+ 'Ты — моё самое тёплое солнышко ☀️',
+ 'Пусть каждый твой день будет нежным, как эти цветы 🌸',
+ 'Ты делаешь мою жизнь ярче, просто потому что ты есть',
+ 'Желаю тебе море улыбок и ни одной грустной минутки 😊',
+ 'Ты самая красивая, самая добрая и самая моя 💗',
+ 'Пусть всё, о чём ты мечтаешь, обязательно сбывается ✨',
+ 'Спасибо, что ты рядом. С тобой всё лучше',
+ 'Обнимаю тебя крепко-крепко 🤗'
+];
+const el=document.getElementById('wish');let wi=0;
+function typeWish(){
+  const s=WISHES[wi%WISHES.length];wi++;
+  el.style.opacity=1;el.textContent='';
+  let n=0;
+  const tick=()=>{
+    el.textContent=s.slice(0,++n);
+    if(n<s.length)setTimeout(tick,45);
+    else setTimeout(()=>{el.style.opacity=0;setTimeout(typeWish,800)},3200);
+  };
+  tick();
+}
+typeWish();
+</script>
+</body>
+</html>
